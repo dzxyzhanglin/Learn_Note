@@ -117,3 +117,54 @@ public class MultiDataSourceConfig {
 
 ### 思考：当配合jpa、mybatis时如何使用多数据源？
 
+
+
+## Spring Boot 工程改造成多模块以及打包（Spring Boot版本：2.1.3.RELEASE）
+
+### 改造成多模块：计划三个模块，web，domain，repository
+
+* 新建web模块，把所有代码copy到web模块
+
+* 新建repository模块，把web模块中关于repository中的代码copy到repository中，并在web模块中添加repository依赖
+
+* 新建domain模块，把web模块中关于domain中的代码copy到repository中，并在repository添加domain的依赖。这样，在web模块中就间接依赖domain模块
+
+  
+
+### 打包
+
+* 把主工程的build插件移动到web模块下的pom.xml文件中，如下
+
+  ```xml
+  <build>
+      <plugins>
+          <plugin>
+              <groupId>org.springframework.boot</groupId>
+              <artifactId>spring-boot-maven-plugin</artifactId>
+              <configuration>
+                  <!-- 主类（手工添加） -->
+                  <mainClass>com.example.springweb.SpringwebApplication</mainClass>
+              </configuration>
+          </plugin>
+      </plugins>
+  </build>
+  ```
+
+* 打成jar包-
+  * 执行打包命令：`mvn -Dmaven.test.skip -U clean package`
+* 打成war包
+  * 在web模块的pom.xml文件中添加`<packaging>war</packaging>`
+  * 执行命令：`mvn -Dmaven.test.skip -U clean package`
+
+### 启动
+
+* 常规启动：在jar目录执行命令->`java -jar web-0.0.1-SNAPSHOT.jar --Dserver.port=0`
+
+  > 注意： --Dserver.port=0，启动一个随机端口
+
+* 目录方式启动（该方式解决老旧的jar不支持Spring Boot的情况）：
+
+  * 将jar文件解压
+  * 进入解压的目录，执行命令`java org.springframework.boot.loader.JarLauncher`
+  * 如果是war包，则命令变为`java org.springframework.boot.loader.WarLauncher`
+
