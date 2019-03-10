@@ -151,6 +151,7 @@ public class MultiDataSourceConfig {
   ```
 
 * 打成jar包-
+
   * 执行打包命令：`mvn -Dmaven.test.skip -U clean package`
 * 打成war包
   * 在web模块的pom.xml文件中添加`<packaging>war</packaging>`
@@ -167,4 +168,181 @@ public class MultiDataSourceConfig {
   * 将jar文件解压
   * 进入解压的目录，执行命令`java org.springframework.boot.loader.JarLauncher`
   * 如果是war包，则命令变为`java org.springframework.boot.loader.WarLauncher`
+
+
+
+
+
+## Spring Boot Validation
+
+### 1、使用自带的注解验证
+
+* 1）在pom.xml中增加依赖
+
+  ```xml
+  <dependency>
+     <groupId>org.springframework.boot</groupId>
+     <artifactId>spring-boot-starter-validation</artifactId>
+  </dependency>
+  ```
+
+ * 2）在实体类上增加注解。如@NotBlank，@Max等，已定义注解有如下：
+   * @AssertFalse
+   * @AssertTrue
+   * @DecimalMax
+   * @DecimalMin
+   * @Digits
+   * @Email
+   * @Future
+   * @FutureOrPresent
+   * @Max
+   * @Min
+   * @Negative
+   * @NegativeOrZero
+   * @NotBlank
+   * @NotEmpty
+   * @NotNull
+   * @Null
+   * @Past
+   * @PastOrPresent
+   * @Pattern
+   * @Positive
+   * @PositiveOrZero
+   * @Size
+ * 3）在Controller的参数里面增加@Valid注解
+
+### 2、自定义验证注解
+
+ * 1） 创建注解 `@ValidCardNumber`
+
+   ```java
+   package com.example.sourcelearn.validation.constraints;
+   
+   import com.example.sourcelearn.validation.ValidCardNumberConstraintValidator;
+   
+   import javax.validation.Constraint;
+   import javax.validation.Payload;
+   import java.lang.annotation.Documented;
+   import java.lang.annotation.Repeatable;
+   import java.lang.annotation.Retention;
+   import java.lang.annotation.Target;
+   
+   import static java.lang.annotation.ElementType.FIELD;
+   import static java.lang.annotation.RetentionPolicy.RUNTIME;
+   
+   @Target({ FIELD }) // 字段
+   @Retention(RUNTIME)
+   @Repeatable(ValidCardNumber.List.class)
+   @Documented
+   @Constraint(validatedBy = { ValidCardNumberConstraintValidator.class })
+   public @interface ValidCardNumber {
+   
+       String message() default "{javax.validation.constraints.card.number.message}";
+   
+       Class<?>[] groups() default { };
+   
+       Class<? extends Payload>[] payload() default { };
+   
+       @Target({ FIELD })
+       @Retention(RUNTIME)
+       @Documented
+       public @interface List {
+           ValidCardNumber[] value();
+       }
+   }
+   ```
+
+* 2) 创建注解实现类  `ValidCardNumberConstraintValidator`
+
+  ```java
+  package com.example.sourcelearn.validation;
+  
+  import com.example.sourcelearn.validation.constraints.ValidCardNumber;
+  import org.apache.commons.lang3.ArrayUtils;
+  import org.apache.commons.lang3.StringUtils;
+  
+  import javax.validation.ConstraintValidator;
+  import javax.validation.ConstraintValidatorContext;
+  
+  /**
+   * @Author zhanglin
+   * @Date 2019/3/10 11:01
+   * @Verson 1.0
+   */
+  public class ValidCardNumberConstraintValidator
+          implements ConstraintValidator<ValidCardNumber, String> {
+  
+      @Override
+      public void initialize(ValidCardNumber constraintAnnotation) {
+  
+      }
+  
+      /**
+       * 验证规则：GUPAO-开头，数字结尾
+       * @param value
+       * @param context
+       * @return
+       */
+      @Override
+      public boolean isValid(String value, ConstraintValidatorContext context) {
+          // 这里的分割尽量不要用String#split
+          // 这里用的Apache的分割
+          String[] parts = StringUtils.split(value, "-");
+  
+          if (ArrayUtils.getLength(parts) != 2) {
+              return false;
+          }
+  
+          boolean isValidPrex = "GUPAO".equals(parts[0]);
+          boolean isValidSuffix = StringUtils.isNumeric(parts[1]);
+  
+          return isValidPrex && isValidSuffix;
+      }
+  }
+  ```
+
+* 3） 在POJO类的字段上面增加注解
+
+  ```java
+  package com.example.sourcelearn.domain;
+  
+  import com.example.sourcelearn.validation.constraints.ValidCardNumber;
+  import lombok.Data;
+  import lombok.ToString;
+  
+  import javax.validation.constraints.NotBlank;
+  
+  
+  @Data
+  @ToString
+  public class User {
+      private Integer id;
+  
+      //@NotNull(message = "姓名不能为空")
+      @NotBlank(message = "姓名不能为空")
+      private String name;
+  
+      // 必须以 GUPAO-开头，数字结尾
+      @ValidCardNumber
+      private String cardNumber;
+  
+      public User() {
+          //this(1, "小马哥");
+      }
+  
+      public User(Integer id, String name) {
+          this.id = id;
+          this.name = name;
+      }
+  
+  }
+  ```
+
+* 国际化：因为spring boot validation用的是hibernate，所以在resource文件下增加国际化资源配置文件`ValidationMessages.properties`和`ValidationMessages.properties`
+
+  ```properties
+  javax.validation.constraints.card.number.message=cardNumer must start with GUPAO,and must end with number
+  ```
+
+  > 注意：这里的键为`@ValidCardNumber` 中定义的message
 
