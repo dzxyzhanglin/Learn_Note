@@ -977,6 +977,19 @@ public class MultiDataSourceConfig {
 
 
 
+## Spring定时任务
+
+### 1、基于注解的定时任务
+
+ * 在需要开启定时任务的类上面增加`@EnableScheduling`注解
+ * 在需要开启定时任务的方法上面增加注解`@Scheduled(cron = "0/5 * * * * ?")`。
+
+
+
+
+
+
+
 ## Spring Boot 工程改造成多模块以及打包（Spring Boot版本：2.1.3.RELEASE）
 
 ### 改造成多模块：计划三个模块，web，domain，repository
@@ -1204,3 +1217,246 @@ public class MultiDataSourceConfig {
 
   > 注意：这里的键为`@ValidCardNumber` 中定义的message
 
+
+
+
+
+
+
+## Spring Cloud Config
+
+> Spring boot 版本：2.1.3.RELEASE
+>
+> Spring cloud版本：Greenwich.SR1
+
+### Server端
+
+ * 1、加入maven依赖
+
+   ```xml
+   <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+   </dependency>
+   <!-- config server依赖 -->
+   <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-config-server</artifactId>
+   </dependency>
+   <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+   </dependency>
+   ```
+
+* 2、在启动类上增加注解`@EnableConfigServer`
+
+* 3、在application.properties增加配置
+
+  ```properties
+  spring.application.name=config-server
+  
+  server.port=9100
+  
+  ## 暴露所有端点
+  # Spring boot 2.0以后方式
+  management.endpoints.web.exposure.include=*
+  # Spring boot 2.0以前方式
+  # management.security.enabled=true
+  
+  # git配置中心地址
+  # 这里也可以用http
+  spring.cloud.config.server.git.uri=\
+    file:///C:/JAVA/Idea_Workspace/spring-cloud-learn/config
+  ```
+
+### Client端
+
+ * 1、加入依赖
+
+   ```xml
+   <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+   </dependency>
+   <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+   </dependency>
+   <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-config-client</artifactId>
+   </dependency>
+   ```
+
+* 2、增加`bootstrap.properties`文件，文件里面添加git配置
+
+  ```properties
+  ## 配置中心地址
+  spring.cloud.config.uri=http://localhost:9100
+  ## {application}
+  spring.cloud.config.name=ht
+  ## {profile}
+  spring.cloud.config.profile=dev
+  ## {label} 如果是git配置，则代表分支名称
+  spring.cloud.config.label=master
+  ```
+
+  application.properties配置内容：
+
+  ```properties
+  spring.application.name=config-client
+  
+  server.port=9101
+  
+  # 暴露所有端点
+  management.endpoints.web.exposure.include=*
+  ```
+
+* 3、`@RefreshScope`：当配置文件修改时，使该注解作用的类、方法下的配置项生效。如果不加该注解，则对应的配置不会时时生效。
+
+  ```java
+  @RestController
+  @RefreshScope
+  public class EchoController {
+  
+      @Value("${my.name}")
+      private String myName;
+  
+      @GetMapping("/echo/env")
+      public Map<String, Object> env() {
+          Map<String, Object> result = new HashMap<>();
+          result.put("name", myName);
+  
+          return result;
+      }
+  }
+  ```
+
+* 4、设置自动刷新配置功能
+
+  ```java
+  package com.example.springcloudconfigclient;
+  
+  import org.springframework.beans.factory.annotation.Autowired;
+  import org.springframework.boot.SpringApplication;
+  import org.springframework.boot.autoconfigure.SpringBootApplication;
+  import org.springframework.cloud.context.refresh.ContextRefresher;
+  import org.springframework.core.env.Environment;
+  import org.springframework.scheduling.annotation.EnableScheduling;
+  import org.springframework.scheduling.annotation.Scheduled;
+  
+  import java.util.Set;
+  
+  @SpringBootApplication
+  @EnableScheduling // 启用定时任务，一定要加上该注解
+  public class SpringCloudConfigClientApplication {
+  
+      // 采用构造方法注入ContextRefresher，刷新配置项
+  	private final ContextRefresher contextRefresher;
+  	private final Environment environment;
+  
+  	@Autowired
+  	public SpringCloudConfigClientApplication(
+  			ContextRefresher contextRefresher,
+  			Environment environment) {
+  		this.contextRefresher = contextRefresher;
+  		this.environment = environment;
+  	}
+  
+  	public static void main(String[] args) {
+  		SpringApplication.run(SpringCloudConfigClientApplication.class, args);
+  	}
+  
+  	/**
+  	 * 采用定时任务自动刷新配置
+  	 */
+  	@Scheduled(cron = "0/5 * * * * ?")
+  	public void autoRefreshConfig() {
+  		Set<String> refreshedConfigs = contextRefresher.refresh();
+  
+  		if (!refreshedConfigs.isEmpty()) {
+  			refreshedConfigs.forEach(property -> {
+  				System.out.printf(
+  						"Thread %s配置项已更新，Key %s，Value %s",
+  						Thread.currentThread().getName(),
+  						property,
+  						environment.getProperty(property)
+  				);
+  			});
+  		}
+  	}
+  }
+  
+  ```
+
+  
+
+
+
+## Spring Cloud服务注册中心
+
+### Eureka
+
+#### 服务端
+
+ * 在启动程序上加上注解`@EnableEurekaServer`
+
+   ```java
+   package com.example.springcloudeurekaserver;
+   
+   import org.springframework.boot.SpringApplication;
+   import org.springframework.boot.autoconfigure.SpringBootApplication;
+   import org.springframework.cloud.netflix.eureka.server.EnableEurekaServer;
+   
+   @SpringBootApplication
+   @EnableEurekaServer // eureka 服务注解
+   public class SpringCloudEurekaServerApplication {
+   
+      public static void main(String[] args) {
+         SpringApplication.run(SpringCloudEurekaServerApplication.class, args);
+      }
+   
+   }
+   ```
+
+* 配置文件，如果是单机，需求取消服务自我注册
+
+  ```properties
+  ### 单机配置
+  spring.application.name=eureka-server
+  server.port=9090
+  ## 取消服务器自我注册
+  eureka.client.register-with-eureka=false
+  eureka.client.fetch-registry=false
+  ## eureka server服务URL
+  eureka.client.service-url.defaultZone=\
+    http://localhost:${server.port}/eureka/
+  ```
+
+
+
+
+
+
+
+### Nacos
+
+
+
+
+
+
+
+## Java基础知识
+
+### 定时任务表达式 cron详解
+
+cron表达式格式：`* * * * * ?`
+
+ * `*`秒（0~59） 例如：0/5表示每5秒
+ * `*`分（0~59）
+ * `*`时（0~23）
+ * `*`日（0~31）的某天
+ * `*`月（0~11）
+ * `?`周（可填1~7，或SUN,MON,TUE,WED,THU,FRI,SAT）
