@@ -1221,6 +1221,164 @@ public class MultiDataSourceConfig {
 
 
 
+## Spring boot自定义配置
+
+### `@Value`注解：
+
+* 在配置文件`application.properties`中定义相应的配置，如：`name=张三`
+
+* 在需要使用的地方用`@Value`注入，如：
+
+  ```java
+  @Value("${name}")
+  private String name;
+  ```
+
+
+
+### @ConfigurationProperties`注解
+
+* 定义配置文件`NacosConfigProperties`
+
+  ```java
+  package org.springframework.cloud.alibaba.nacos;
+  
+  
+  import com.alibaba.nacos.api.config.ConfigService;
+  import org.slf4j.Logger;
+  import org.slf4j.LoggerFactory;
+  import org.springframework.boot.context.properties.ConfigurationProperties;
+  import org.springframework.stereotype.Component;
+  
+  /**
+   * @Author zhanglin
+   * @Date 2019/3/22 23:01
+   * @Verson 1.0
+   */
+  @Component
+  @ConfigurationProperties(NacosConfigProperties.PREFIX)
+  public class NacosConfigProperties {
+  
+      public static final String PREFIX = "spring.cloud.nacos.config";
+  
+      private static final Logger LOGGER = LoggerFactory
+              .getLogger(NacosConfigProperties.class);
+  
+      /**
+       * nacos config server address
+       */
+      private String serverAddr;
+  
+      /**
+       * nacos config group, group is config data meta info.
+       */
+      private String group = "DEFAULT_GROUP";
+  
+      /**
+       * nacos config dataId prefix
+       */
+      private String prefix;
+      /**
+       * the suffix of nacos config dataId, also the file extension of config content.
+       */
+      private String fileExtension = "properties";
+  
+      /**
+       * timeout for get config from nacos.
+       */
+      private int timeout = 3000;
+  
+      private ConfigService configService;
+  
+      public String getServerAddr() {
+          return serverAddr;
+      }
+  
+      public void setServerAddr(String serverAddr) {
+          this.serverAddr = serverAddr;
+      }
+  
+      public String getGroup() {
+          return group;
+      }
+  
+      public void setGroup(String group) {
+          this.group = group;
+      }
+  
+      public String getPrefix() {
+          return prefix;
+      }
+  
+      public void setPrefix(String prefix) {
+          this.prefix = prefix;
+      }
+  
+      public String getFileExtension() {
+          return fileExtension;
+      }
+  
+      public void setFileExtension(String fileExtension) {
+          this.fileExtension = fileExtension;
+      }
+  
+      public int getTimeout() {
+          return timeout;
+      }
+  
+      public void setTimeout(int timeout) {
+          this.timeout = timeout;
+      }
+  
+      @Override
+      public String toString() {
+          return "NacosConfigProperties{" +
+                  "serverAddr='" + serverAddr + '\'' +
+                  ", group='" + group + '\'' +
+                  ", prefix='" + prefix + '\'' +
+                  ", fileExtension='" + fileExtension + '\'' +
+                  ", timeout=" + timeout +
+                  '}';
+      } 
+  }
+  ```
+
+* 在Controller或其他需要使用的地方用`@Autowired`注入
+
+  ```java
+  package com.example.springnacosredo.controller;
+  
+  import org.springframework.beans.factory.annotation.Autowired;
+  import org.springframework.cloud.alibaba.nacos.NacosConfigProperties; 
+  import org.springframework.web.bind.annotation.GetMapping;
+  import org.springframework.web.bind.annotation.RestController;
+  
+  import java.util.HashMap;
+  import java.util.Map;
+  
+  /**
+   * @Author zhanglin
+   * @Date 2019/3/22 23:18
+   * @Verson 1.0
+   */
+  @RestController
+  public class EchoController {
+  
+      @Autowired
+      private NacosConfigProperties nacosConfigProperties; 
+  
+      @GetMapping("/index")
+      public String index() {
+          String res = "serverAddr = " + nacosConfigProperties.getServerAddr();
+          return res;
+      } 
+  }
+  ```
+
+  
+
+
+
 
 
 ## Spring Cloud Config
@@ -1442,6 +1600,550 @@ public class MultiDataSourceConfig {
 
 ### Nacos
 
+#### 1、安装nacos服务端
+
+ * 下载nacos服务端
+
+ * 配置nacos中的`conf/application.properties`文件
+
+   ```properties
+   # spring 
+   server.contextPath=/nacos
+   server.servlet.contextPath=/nacos
+   server.port=8848
+   
+   # 如果不配置mysql数据库，则nacos默认将数据存储在derby中
+   spring.datasource.platform=mysql
+   db.num=1
+   db.url.0=jdbc:mysql://127.0.0.1:3306/nacos?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true
+   db.user=root
+   db.password=
+   nacos.cmdb.dumpTaskInterval=3600
+   nacos.cmdb.eventTaskInterval=10
+   nacos.cmdb.labelTaskInterval=300
+   nacos.cmdb.loadDataAtStart=false
+   
+   
+   # metrics for prometheus
+   #management.endpoints.web.exposure.include=*
+   
+   # metrics for elastic search
+   management.metrics.export.elastic.enabled=false
+   #management.metrics.export.elastic.host=http://localhost:9200
+   
+   # metrics for influx
+   management.metrics.export.influx.enabled=false
+   #management.metrics.export.influx.db=springboot
+   #management.metrics.export.influx.uri=http://localhost:8086
+   #management.metrics.export.influx.auto-create-db=true
+   #management.metrics.export.influx.consistency=one
+   #management.metrics.export.influx.compressed=true
+   
+   server.tomcat.accesslog.enabled=true
+   server.tomcat.accesslog.pattern=%h %l %u %t "%r" %s %b %D
+   # default current work dir
+   server.tomcat.basedir=
+   
+   ## spring security config
+   ### turn off security
+   #spring.security.enabled=false
+   #management.security=false
+   #security.basic.enabled=false
+   #nacos.security.ignore.urls=/**
+   
+   nacos.security.ignore.urls=/,/**/*.css,/**/*.js,/**/*.html,/**/*.map,/**/*.svg,/**/*.png,/**/*.ico,/console-fe/public/**,/v1/auth/login,/v1/console/health,/v1/cs/**,/v1/ns/**,/v1/cmdb/**,/actuator/**
+   
+   ```
+
+#### 2、客户端使用
+
+ * 添加依赖
+
+   ```xml
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+       <version>0.2.1.RELEASE</version>
+   </dependency>
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+       <version>0.2.1.RELEASE</version>
+   </dependency>
+   ```
+
+   > 注意版本：nacos中 0.2.x对应spring boot 2.x的版本
+   >
+   > ​                                   0.1.x对应spring boot 1.x的版本
+
+* 在`bootstrap.properties`中添加配置项
+
+  ```properties
+  spring.application.name=cas-auth-server
+  spring.profiles.active=dev
+  
+  spring.cloud.nacos.config.server-addr=127.0.0.1:8848
+  spring.cloud.nacos.config.file-extension=yaml
+  #spring.cloud.nacos.config.group=DEFAULT_GROUP
+  ```
+
+* 在启动项上添加注解`@EnableDiscoveryClient`
+
+> nacos中dataId的规则：${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+>
+> 注意配置dataId的时候后缀不要忘写了
+
+
+
+
+
+
+
+## Activiti6.0
+
+> 问题：  1、在某个节点自定义返回到某个节点
+>
+> ​              2、流程表用户怎么和先用用户对接
+>
+> ​              3、在某个节点添加自定义子流程
+>
+> ​              4、一个节点两个审批
+>
+> ​	      *5、动态设置节点处理人*		
+>
+> ​	
+>
+> ​	需要手机端配合，又考虑手机端的设计？
+
+### 初体验
+
+```java
+package com.example.activiti6helloword;
+
+import org.activiti.engine.*;
+import org.activiti.engine.form.FormProperty;
+import org.activiti.engine.form.TaskFormData;
+import org.activiti.engine.repository.Deployment;
+import org.activiti.engine.repository.ProcessDefinition;
+import org.activiti.engine.runtime.ProcessInstance;
+import org.activiti.engine.task.Task;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
+
+public class Activiti6HellowordApplication {
+
+    private static final Logger logger = LoggerFactory.getLogger(Activiti6HellowordApplication.class);
+
+
+    public static void main(String[] args) {
+
+        logger.info("启动流程");
+
+        // 创建流程引擎
+        ProcessEngineConfiguration configuration = ProcessEngineConfiguration.createStandaloneProcessEngineConfiguration();
+        configuration.setJdbcUrl("jdbc:mysql://127.0.0.1:3306/activiti-helloword?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true");
+        configuration.setJdbcDriver("com.mysql.cj.jdbc.Driver");
+        configuration.setJdbcUsername("root");
+        configuration.setJdbcPassword("");
+        configuration.setDatabaseSchemaUpdate(ProcessEngineConfiguration.DB_SCHEMA_UPDATE_TRUE);
+        ProcessEngine processEngine = configuration.buildProcessEngine();
+
+        logger.info("流程引擎名称 {}， 版本 {}", processEngine.getName(), ProcessEngine.VERSION);
+
+        // 部署流程
+        RepositoryService repositoryService = processEngine.getRepositoryService();
+        Deployment deployment = repositoryService.createDeployment()
+                .addClasspathResource("approve.bpmn20.xml")
+                .deploy();
+        String deploymentId = deployment.getId();
+
+        ProcessDefinition processDefinition = repositoryService
+                .createProcessDefinitionQuery()
+                .deploymentId(deploymentId)
+                .singleResult();
+        logger.info("流程定义文件 {}，流程ID {}", processDefinition.getName(), processDefinition.getId());
+
+        // 启动运行流程
+        RuntimeService runtimeService = processEngine.getRuntimeService();
+        ProcessInstance processInstance = runtimeService.startProcessInstanceById(processDefinition.getId());
+        logger.info("启动流程 {}", processInstance.getProcessDefinitionKey());
+
+        // 执行任务
+        Scanner scanner = new Scanner(System.in);
+        FormService formService = processEngine.getFormService();
+        while (processInstance != null && !processInstance.isEnded()) {
+            TaskService taskService = processEngine.getTaskService();
+            List<Task> tasks = taskService.createTaskQuery()
+                    .processInstanceId(processInstance.getProcessInstanceId())
+                    .list();
+            logger.info("待处理任务数量 {}", tasks.size());
+            Map<String, Object> variables = new HashMap<>();
+            for (Task task : tasks) {
+                logger.info("待处理任务 {}, 详细信息 {}", task.getName(), task.toString());
+                // 任务表单
+                TaskFormData taskFormData = formService.getTaskFormData(task.getId());
+                List<FormProperty> formProperties = taskFormData.getFormProperties();
+                for (FormProperty formProperty: formProperties) {
+                    logger.info("请输入 {}, {}", formProperty.getName(), formProperty.getId());
+                    String line = scanner.nextLine();
+                    variables.put(formProperty.getId(), line);
+                }
+                taskService.complete(task.getId(), variables);
+
+                processInstance = runtimeService
+                        .createProcessInstanceQuery()
+                        .processInstanceId(processInstance.getId())
+                        .singleResult();
+            }
+        }
+        scanner.close();
+
+        logger.info("结束流程");
+    }
+
+}
+```
+
+
+
+### 核心API
+
+#### RepositoryService
+
+```java
+package com.example.activiti6helloword;
+
+import org.activiti.engine.FormService;
+import org.activiti.engine.ProcessEngine;
+import org.activiti.engine.ProcessEngineConfiguration;
+import org.activiti.engine.RepositoryService;
+import org.activiti.engine.repository.Deployment;
+import org.activiti.engine.repository.ProcessDefinition;
+import org.activiti.engine.task.IdentityLink;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Date;
+import java.util.List;
+
+/**
+ * @Author zhanglin
+ * @Date 2019/4/4 9:36
+ * @Verson 1.0
+ */
+public class Activiti6ServiceTests {
+
+    private final static Logger logger = LoggerFactory.getLogger(Activiti6ServiceTests.class);
+
+    @Test
+    public void testRepository() {
+        // 创建流程引擎
+        ProcessEngineConfiguration configuration = ProcessEngineConfiguration.createStandaloneProcessEngineConfiguration();
+        configuration.setJdbcUrl("jdbc:mysql://127.0.0.1:3306/activiti-helloword?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true");
+        configuration.setJdbcDriver("com.mysql.cj.jdbc.Driver");
+        configuration.setJdbcUsername("root");
+        configuration.setJdbcPassword("");
+        configuration.setDatabaseSchemaUpdate(ProcessEngineConfiguration.DB_SCHEMA_UPDATE_TRUE);
+        ProcessEngine processEngine = configuration.buildProcessEngine();
+
+        logger.info("流程引擎名称 {}， 版本 {}", processEngine.getName(), ProcessEngine.VERSION);
+
+
+        RepositoryService repositoryService = processEngine.getRepositoryService();
+
+        /*
+        Deployment deployment = repositoryService.createDeployment()
+                .name("测试流程部署-0404-1")
+                .category("category-0404-1")
+                .key("approve-0404-1")
+                .tenantId("tenantId-0404-1")
+                .addClasspathResource("approve.bpmn20.xml")
+                .deploy();
+        logger.info("deployment info -> id:{}, name:{}, DeploymentTime:{},key:{},TenantId:{}",
+                deployment.getId(),
+                deployment.getName(),
+                deployment.getDeploymentTime(),
+                deployment.getKey(),
+                deployment.getTenantId());
+        // deployment info -> id:30001, name:测试流程部署-0404-1, DeploymentTime:Thu Apr 04 09:57:14 CST 2019,key:approve-0404-1,TenantId:tenantId-0404-1
+
+        List<ProcessDefinition> processDefinitions = repositoryService.createProcessDefinitionQuery()
+                .deploymentId(deployment.getId())
+                .listPage(0, 100);
+        logger.info("单个流程部署对应的流程实例数量：{}", processDefinitions.size());
+        // 单个流程部署对应的流程实例数量：1
+        for (ProcessDefinition processDefinition: processDefinitions) {
+            logger.info("processDefinition info -> id:{},Category:{},Name:{},Key:{},Description:{}," +
+                    "Version:{},ResourceName:{},DeploymentId:{},DiagramResourceName:{},StartFormKey:{}," +
+                    "TenantId:{}",
+                    processDefinition.getId(),
+                    processDefinition.getCategory(),
+                    processDefinition.getName(),
+                    processDefinition.getDescription(),
+                    processDefinition.getVersion(),
+                    processDefinition.getResourceName(),
+                    processDefinition.getDeploymentId(),
+                    processDefinition.getDiagramResourceName(),
+                    processDefinition.hasStartFormKey(),
+                    processDefinition.getTenantId());
+            // processDefinition info -> id:approve-0404-1:1:30004,Category:http://www.activiti.org/test,Name:approve prpcess,Key:null,Description:1,Version:approve.bpmn20.xml,ResourceName:30001,DeploymentId:approve.approve-0404-1.png,DiagramResourceName:false,StartFormKey:tenantId-0404-1,TenantId:{}
+        }
+        */
+
+        String processDefinitionId = "approve-0404-1:1:30004";
+        // 暂停一个流程
+        //repositoryService.suspendProcessDefinitionById(processDefinitionId);
+        // 激活一个流程
+        //repositoryService.activateProcessDefinitionById(processDefinitionId);
+
+        // 指定开始流程用户
+        //repositoryService.addCandidateStarterUser(processDefinitionId, "userdev");
+        // 指定开始流程用户组
+        //repositoryService.addCandidateStarterGroup(processDefinitionId, "ROLE_ADMIN");
+        // 查询流程用户及用户组
+        List<IdentityLink> identityLinksForProcessDefinitions = repositoryService.getIdentityLinksForProcessDefinition(processDefinitionId);
+        for (IdentityLink identityLinksForProcessDefinition: identityLinksForProcessDefinitions) {
+            logger.info("IdentityLink {}", identityLinksForProcessDefinition);
+            // IdentityLink IdentityLinkEntity[id=35001, type=candidate, userId=userdev, processDefId=approve-0404-1:1:30004]
+            // IdentityLink IdentityLinkEntity[id=35002, type=candidate, groupId=ROLE_ADMIN, processDefId=approve-0404-1:1:30004]
+
+        }
+    }
+}
+
+```
+
+* 执行`RepositoryService`的`deploy`之后的数据表变化，总计变化四张表：
+
+  * 1、`act_ge_property`更新`next.dbid`字段
+
+  * 2、`act_re_deployment`写入一条流程部署数据
+  * 3、`act_ge_bytearray`写入两条数据
+  * 4、`act_re_procdef`写入一条数据。`SUSPENSION_STATE_` **流程状态 1正常 2暂停**
+
+![1554343723619](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554343723619.png)
+
+![1554343777818](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554343777818.png)
+
+![1554343833744](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554343833744.png)
+
+ * 执行`repositoryService.suspendProcessDefinitionById(processDefinitionId);`后数据变化
+
+   `act_re_procdef`中字段`SUSPENSION_STATE_` 变为**2**
+
+ * 执行`repositoryService.addCandidateStarterUser(processDefinitionId, "userdev");`数据变化
+
+   `act_ru_identitylink`写入一条数据
+
+   ![1554346474840](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554346474840.png)
+
+
+
+
+
+#### RuntimeService
+
+```java
+@Test
+public void testRuntimeService() {
+    // 创建流程引擎
+    ProcessEngineConfiguration configuration = ProcessEngineConfiguration.createStandaloneProcessEngineConfiguration();
+    configuration.setJdbcUrl("jdbc:mysql://127.0.0.1:3306/activiti-helloword?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true");
+    configuration.setJdbcDriver("com.mysql.cj.jdbc.Driver");
+    configuration.setJdbcUsername("root");
+    configuration.setJdbcPassword("");
+    configuration.setDatabaseSchemaUpdate(ProcessEngineConfiguration.DB_SCHEMA_UPDATE_TRUE);
+    ProcessEngine processEngine = configuration.buildProcessEngine();
+
+    RuntimeService runtimeService = processEngine.getRuntimeService();
+
+    String processDefinitionId = "approve-0404-1:1:30004";
+    // 启动流程
+    /*
+    Map<String, Object> variables = new HashMap<>();
+    variables.put("key1-0404-1", "value1-0404-1");
+    variables.put("key2-0404-1", "value2-0404-1");
+    ProcessInstance processInstance = runtimeService.createProcessInstanceBuilder()
+            .processDefinitionId(processDefinitionId)
+            .businessKey("businessKey-0404-1")
+            .variables(variables)
+            .start();
+    logger.info("processInstance info -> ProcessDefinitionId:{},ProcessDefinitionName:{}," +
+            "ProcessDefinitionKey:{},ProcessDefinitionVersion:{},DeploymentId:{}," +
+            "ProcessVariables:{},StartUserId:{}",
+            processInstance.getProcessDefinitionId(),
+            processInstance.getProcessDefinitionName(),
+            processInstance.getProcessDefinitionKey(),
+            processInstance.getProcessDefinitionVersion(),
+            processInstance.getDeploymentId(),
+            processInstance.getProcessVariables(),
+            processInstance.getStartUserId());
+    // processInstance info -> ProcessDefinitionId:approve-0404-1:1:30004,ProcessDefinitionName:approve prpcess,ProcessDefinitionKey:approve-0404-1,ProcessDefinitionVersion:1,DeploymentId:null,ProcessVariables:{},StartUserId:null
+    logger.info("Execution info -> id:{},ActivityId:{},ProcessInstanceId:{}",
+            processInstance.getId(),
+            processInstance.getActivityId(),
+            processInstance.getProcessInstanceId());
+    // Execution info -> id:37501,ActivityId:null,ProcessInstanceId:37501
+    // 其他几种启动流程方式
+    //runtimeService.startProcessInstanceById(processDefinitionId);
+    //runtimeService.startProcessInstanceById(processDefinitionId, businessKey);
+    //runtimeService.startProcessInstanceById(processDefinitionId, variables);
+    //runtimeService.startProcessInstanceById(processDefinitionId, businessKey, variables);
+
+    List<Execution> executions = runtimeService.createExecutionQuery()
+            .processDefinitionId(processDefinitionId)
+            .listPage(0, 100);
+    for (Execution execution : executions) {
+        logger.info("execution = {}", execution);
+        // execution = ProcessInstance[37501]
+        // execution = Execution[ id '37504' ] - activity 'userApprove - parent '37501'
+    }
+    */
+
+    // 查询流程实例
+    String processInstanceId = "37501";
+    List<ProcessInstance> processInstances = runtimeService
+            .createProcessInstanceQuery()
+            .processInstanceId(processInstanceId)
+            .listPage(0, 1);
+    logger.info("processInstances size = {}", processInstances.size());
+    for (ProcessInstance processInstance : processInstances) {
+        logger.info("processInstance 1 = {}, isEnd:{}", processInstance, processInstance.isEnded());
+    }
+
+    ProcessInstance processInstance = runtimeService.createProcessInstanceQuery().processInstanceId(processInstanceId).singleResult();
+    logger.info("processInstance 2 = {}", processInstance);
+}
+```
+
+ * 执行`RuntimeService`的`start`之后的数据表变化
+
+    * `act_ru_execution`新增两条记录。并在第一条记录中记录`BUSINESS_KEY_`
+
+    * `act_ru_variable`表中记录启动时设置的`variables`的记录
+
+    * `act_ru_task`记录当前活动的任务。`EXCUTION_ID_`对应的`act_ru_execution`表最新记录的ID_
+
+    * `act_hi_varinst`、`act_hi_taskinst`、`act_hi_procinst`、`act_hi_taskinst`分别记录对应的历史记录数据。
+
+      ![1554349660867](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554349660867.png)
+
+      ![1554349673943](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554349673943.png)
+
+      ![1554349682154](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554349682154.png)
+
+      
+
+#### TaskService
+
+```java
+@Test
+public void testTaskService() {
+    // 创建流程引擎
+    ProcessEngineConfiguration configuration = ProcessEngineConfiguration.createStandaloneProcessEngineConfiguration();
+    configuration.setJdbcUrl("jdbc:mysql://127.0.0.1:3306/activiti-helloword?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true");
+    configuration.setJdbcDriver("com.mysql.cj.jdbc.Driver");
+    configuration.setJdbcUsername("root");
+    configuration.setJdbcPassword("");
+    configuration.setDatabaseSchemaUpdate(ProcessEngineConfiguration.DB_SCHEMA_UPDATE_TRUE);
+    ProcessEngine processEngine = configuration.buildProcessEngine();
+
+    TaskService taskService = processEngine.getTaskService();
+
+    String processDefinitionId = "approve-0404-1:1:30004";
+    String processInstanceId = "37501";
+
+    // Task
+    // active() 查询所有活动的任务
+    // taskCandidateOrAssigned() 查询候选人或已确认人的任务
+    // processInstanceId() 查询某个流程实例的任务
+
+    // TaskService
+    // addCandidateUser(taskId, userId) 给任务添加候选处理人
+    //    act_ru_identitylink
+    // addComment(taskId, processInstanceId, message) 给任务添加评论
+    //    act_hi_comment 表添加一条数据
+    // claim(taskId, userId) 确认任务
+    //    act_ru_task 表修改 ASSIGNEE_、CLAIM_TIME_两个字段
+    // unclaim(taskId) 取消确认任务
+    // getIdentityLinksForTask(taskId) 查询任务有权限操作的人。包括 candidate、assignee、owner
+    // complete(taskId) 完成任务
+    //    执行过程： 1、act_ru_task 删除当前任务，添加下一个节点任务
+    //              2、act_ru_execution 修改为下一个节点任务信息
+    //              3、act_hi_taskinst 添加下一个节点任务
+    //              4、act_hi_actinst 添加下一个节点任务， 如果当前节点后有网关，则也把网关添加一条数据
+    List<Task> tasks = taskService.createTaskQuery()
+            //.active()
+            .processInstanceId(processInstanceId)
+            //.taskCandidateOrAssigned("usertl")
+            .listPage(0, 100);
+    logger.info("json-task1 size = {}", tasks.size());
+    for (Task task : tasks) {
+        logger.info("json-task1 = {}", ToStringBuilder.reflectionToString(task, ToStringStyle.JSON_STYLE));
+        //taskService.addCandidateUser(task.getId(), "usertl");
+        //taskService.addComment(task.getId(), processInstanceId, "给任务37507添加了一个评论");
+        //taskService.claim(task.getId(), "userhr");
+        //taskService.unclaim(task.getId());
+        /*List<IdentityLink> identityLinksForTasks = taskService.getIdentityLinksForTask(task.getId());
+        for (IdentityLink identityLinksForTask : identityLinksForTasks) {
+            logger.info("identityLinksForTask = {}", ToStringBuilder.reflectionToString(identityLinksForTask, ToStringStyle.JSON_STYLE));
+        }*/
+
+        Map<String, Object> v = new HashMap<>();
+        v.put("task-complete-0404-3", "task-complete-0404-3");
+        v.put("approveResult", "Y");
+        taskService.complete(task.getId(), v);
+    }
+
+    List<Task> tasks2 = taskService.createTaskQuery()
+            //.active()
+            .processInstanceId(processInstanceId)
+            .listPage(0, 100);
+    for (Task task : tasks2) {
+        logger.info("json-task2 = {}", ToStringBuilder.reflectionToString(task, ToStringStyle.JSON_STYLE));
+    }
+}
+```
+
+ * `addCandidateUser(taskId, userId)` 给任务添加候选处理人
+   *  act_ru_identitylink
+* `addComment(taskId, processInstanceId, message) `给任务添加评论
+  * act_hi_comment 表添加一条数据
+* `claim(taskId, userId) `确认任务
+  * act_ru_task 表修改 ASSIGNEE_、CLAIM_TIME_两个字段
+* `unclaim(taskId) `取消确认任务
+* `getIdentityLinksForTask(taskId) `查询任务有权限操作的人。包括 candidate、assignee、owner
+* `complete(taskId) `完成任务。执行过程：
+  * 1、act_ru_task 删除当前任务，添加下一个节点任务
+  * 2、act_ru_execution 修改为下一个节点任务信息
+  * 3、act_hi_taskinst 添加下一个节点任务
+  * 4、act_hi_actinst 添加下一个节点任务， 如果当前节点后有网关，则也把网关添加一条数据
+* ······
+
+#### IdentityService
+
+#### FormService
+
+#### HistoryService
+
+#### ManagementService
+
+#### DynamicBpmService
+
+### 数据模型设计
+
+ * ACT_GE_* 通用数据表（GE表示General）
+ * ACT_RE_* 流程定义存储表（RE表示Repository‘）
+ * ACT_ID_* 身份信息表（ID表示Identity）
+ * ACT_RU_* 运行时数据库表（RU表示Runtime）
+ * ACT_HI_* 历史数据库表（HI表示History）
+
 
 
 
@@ -1460,3 +2162,12 @@ cron表达式格式：`* * * * * ?`
  * `*`日（0~31）的某天
  * `*`月（0~11）
  * `?`周（可填1~7，或SUN,MON,TUE,WED,THU,FRI,SAT）
+
+
+
+### Spring中Constructor、@Autowired、@PostConstruct
+
+​	依赖注入从字面意思就可以知道，要将对象P注入到对象A，那么首先就必须生成对象P与对象A，才能执行注入。所以，如果一个类A中有成员变量P被@Autowired注解，那么@Autowired注入是发生在A的构造方法执行完之后的。
+
+​	如果想在生成对象的时候完成某些初始化操作，而偏偏这些初始化操作又依赖于依赖注入，那么久无法在构造函数中实现。为此，可以使用`@PostConstruct`注解一个**方法**来完成初始化，`@PostConstruct`注解的方法将会在依赖注入完成后被自动调用。
+
