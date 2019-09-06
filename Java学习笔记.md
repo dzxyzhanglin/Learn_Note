@@ -1693,6 +1693,144 @@ public class MultiDataSourceConfig {
 >
 > 注意配置dataId的时候后缀不要忘写了
 
+#### 3、在Linux上后台启动命令
+
+```properties
+nacos:
+nohup ./bin/startup.sh -m standalone &
+
+nginx:
+service nginx start
+```
+
+
+
+
+
+## Spring Cloud完整篇
+
+### 1、组件及版本
+
+| Spring Boot   | Spring Cloud Alibaba | Nacos Server | Spring Cloud |      |
+| ------------- | -------------------- | ------------ | ------------ | ---- |
+| 2.1.3.RELEASE | 2.1.0.RELEASE        | 1.1.3        |              |      |
+|               |                      |              |              |      |
+|               |                      |              |              |      |
+
+> Spring Cloud Alibaba 中包含nacos坐标引用。
+
+### 2、Nacos
+
+nacos 包含`配置中心`、`服务注册与发现`，可根据实际需要选择使用。
+
+在`dependencyManagement`中添加Spring Cloud Alibaba依赖：
+
+```properties
+<dependencyManagement>
+	<dependencies>
+        <!-- alibaba cloud依赖 -->
+        <!-- 2.1.0.RELEASE 对应 Spring Cloud Greenwich 版本 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+            <version>2.1.0.RELEASE</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+	</dependencies>
+</dependencyManagement>
+```
+
+然后在工程中引入nacos：
+
+```properties
+<!-- nacos服务发现与注册 -->
+<dependency>
+    <groupId>com.alibaba.cloud</groupId>
+    <artifactId>spring-cloud-alibaba-nacos-discovery</artifactId>
+</dependency>
+```
+
+最后，在Spring boot的启动文件添加注解`@EnableDiscoveryClient`，即可开启nacos的服务注册与发现功能。
+
+### 3、Feign以及断路器
+
+* 定义一个接口
+
+  > 接口添加注解`@FeignClient`。其中name为服务提供者的名称，一般是`spring.application.name`；fallback为熔断时降级处理的类。
+
+```java
+package com.example.client;
+
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+
+/**
+ * @Author zhanglin
+ * @Date 2019/8/13 14:27
+ * @Verson 1.0
+ */
+@FeignClient(name = "demo-service", fallback = DemoClientFallBack.class)
+public interface DemoClient {
+
+    @RequestMapping(value = "/user/name", method = RequestMethod.GET)
+    String name(@RequestParam(value = "name") String name);
+}
+```
+
+* DemoClientFallBack 降级处理类
+
+```java
+package com.example.client;
+
+import org.springframework.stereotype.Component;
+
+/**
+ * @Author zhanglin
+ * @Date 2019/8/13 15:45
+ * @Verson 1.0
+ */
+@Component
+public class DemoClientFallBack implements DemoClient {
+
+    @Override
+    public String name(String name) {
+        return "fall back";
+    }
+}
+```
+
+* 消费者端开启熔断。`feign.hystrix.enable=true`，该配置默认为false。
+
+* feign超时时间配置
+
+```properties
+# feigin开启及超时时间配置
+feign:
+  hystrix:
+    enabled: true   # 启用断路器功能
+ribbon:
+  # 连接超时
+  ConnectTimeout: 2000
+  # 响应超时
+  ReadTimeout: 5000
+hystrix:
+  command:
+    default:
+      execution:
+        isolation:
+          thread:
+            timeoutInMilliseconds: 6000
+```
+
+> 注：ribbon的超时时间不要大于hystrix超时时间
+
+
+
+
+
 
 
 
@@ -1701,15 +1839,19 @@ public class MultiDataSourceConfig {
 
 ## Activiti6.0
 
-> 问题：  1、在某个节点自定义返回到某个节点
+> 问题：  ~~1、在某个节点自定义返回到某个节点（流程任意跳转）~~   自定义流程处理Command
 >
 > ​              2、流程表用户怎么和先用用户对接
 >
-> ​              3、在某个节点添加自定义子流程
+> ​              3、在某个节点添加自定义子流程      ~~`CallActiviti`~~   不在流程定义中体现，这里自己控制。通过 `ROOT_PROC_INST_ID_`字段关联
 >
-> ​              4、一个节点两个审批
+> ​              4、一个节点两个审批   ????
 >
-> ​	      *5、动态设置节点处理人*		
+> ​	      ~~*5、动态设置节点处理人*~~	
+>
+> 
+>
+> ​	      6、流程节点有网关吗 ？	
 >
 > ​	
 >
@@ -1768,6 +1910,9 @@ public class Activiti6HellowordApplication {
                 .singleResult();
         logger.info("流程定义文件 {}，流程ID {}", processDefinition.getName(), processDefinition.getId());
 
+        // 设置 userStartId
+        processEngine.getIdentityService().setAuthenticatedUserId("userTestStartId");
+        
         // 启动运行流程
         RuntimeService runtimeService = processEngine.getRuntimeService();
         ProcessInstance processInstance = runtimeService.startProcessInstanceById(processDefinition.getId());
@@ -2140,9 +2285,461 @@ public void testTaskService() {
 
  * ACT_GE_* 通用数据表（GE表示General）
  * ACT_RE_* 流程定义存储表（RE表示Repository‘）
+
+![1554424157744](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554424157744.png)
+
+![1554424199314](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554424199314.png)
+
+
+
+
+
  * ACT_ID_* 身份信息表（ID表示Identity）
+
+![1554424686471](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554424686471.png)
+
+
+
+
+
  * ACT_RU_* 运行时数据库表（RU表示Runtime）
+
+![1554424826668](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554424826668.png)
+
+![1554424957827](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554424957827.png)
+
+![1554425050976](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554425050976.png)
+
+
+
+![1554425127288](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554425127288.png)
+
+![1554425238361](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554425238361.png)
+
+
+
+![1554425310679](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554425310679.png)
+
+
+
+![1554425386179](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554425386179.png)
+
+![1554425412189](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554425412189.png)
+
+
+
+![1554425443676](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554425443676.png)
+
+
+
+![1554425523343](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554425523343.png)
+
+
+
+
+
+
+
  * ACT_HI_* 历史数据库表（HI表示History）
+
+![1554428891367](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554428891367.png)
+
+
+
+![1554429044888](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554429044888.png)
+
+
+
+![1554429109102](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554429109102.png)
+
+
+
+![1554429233909](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554429233909.png)
+
+![1554429272051](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554429272051.png)
+
+
+
+### 任意跳转节点
+
+```java
+package com.example.activiti6helloword.command;
+
+import org.activiti.bpmn.model.FlowElement;
+import org.activiti.bpmn.model.Process;
+import org.activiti.engine.impl.interceptor.Command;
+import org.activiti.engine.impl.interceptor.CommandContext;
+import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
+import org.activiti.engine.impl.persistence.entity.ExecutionEntityManager;
+import org.activiti.engine.impl.persistence.entity.TaskEntity;
+import org.activiti.engine.impl.persistence.entity.TaskEntityManager;
+import org.activiti.engine.impl.util.ProcessDefinitionUtil;
+
+import java.util.Map;
+
+/**
+ * 节点跳转
+ *
+ * @Author zhanglin
+ * @Date 2019/4/8 16:21
+ * @Verson 1.0
+ */
+public class JumpTaskCmd implements Command<Void> {
+
+    private String currentTaskId; // 当前任务ID
+    private String targetFlowElementId; // 目标节点Element
+    private Map<String, Object> targetVariables;
+    private String deleteCurrentTaskReason; // 删除当前节点原因
+
+    public JumpTaskCmd(String currentTaskId, String targetFlowElementId, Map<String, Object> targetVariables, String deleteCurrentTaskReason) {
+        this.currentTaskId = currentTaskId;
+        this.targetFlowElementId = targetFlowElementId;
+        this.targetVariables = targetVariables;
+        this.deleteCurrentTaskReason = deleteCurrentTaskReason;
+    }
+
+    @Override
+    public Void execute(CommandContext commandContext) {
+        // 获取当前任务的来源任务及来源节点信息
+        TaskEntityManager taskEntityManager = commandContext.getTaskEntityManager();
+        TaskEntity taskEntity = taskEntityManager.findById(currentTaskId);
+
+        // 获取当前执行实例
+        ExecutionEntityManager executionEntityManager = commandContext.getExecutionEntityManager();
+        ExecutionEntity executionEntity = executionEntityManager.findById(taskEntity.getExecutionId());
+        Process process = ProcessDefinitionUtil.getProcess(executionEntity.getProcessDefinitionId());
+
+        // 删除当前节点
+        taskEntityManager.deleteTask(taskEntity, deleteCurrentTaskReason, false, false);
+
+        // 获取要跳转的目标节点
+        FlowElement targetFlowElement = process.getFlowElement(targetFlowElementId);
+        executionEntity.setCurrentFlowElement(targetFlowElement);
+        if (targetVariables != null) {
+            executionEntity.setVariables(targetVariables);
+        }
+        commandContext.getAgenda().planContinueProcessInCompensation(executionEntity);
+
+        return null;
+    }
+}
+```
+
+
+
+### 自定义完成流程节点。避免任意跳转节点后有未执行的节点
+
+```java
+package com.example.activiti6helloword.command;
+
+import org.activiti.bpmn.model.FlowElement;
+import org.activiti.bpmn.model.Process;
+import org.activiti.engine.ActivitiException;
+import org.activiti.engine.delegate.TaskListener;
+import org.activiti.engine.delegate.event.ActivitiEventDispatcher;
+import org.activiti.engine.delegate.event.ActivitiEventType;
+import org.activiti.engine.delegate.event.impl.ActivitiEventBuilder;
+import org.activiti.engine.impl.cmd.AbstractCompleteTaskCmd;
+import org.activiti.engine.impl.context.Context;
+import org.activiti.engine.impl.identity.Authentication;
+import org.activiti.engine.impl.interceptor.CommandContext;
+import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
+import org.activiti.engine.impl.persistence.entity.TaskEntity;
+import org.activiti.engine.impl.util.Activiti5Util;
+import org.activiti.engine.impl.util.ProcessDefinitionUtil;
+import org.activiti.engine.task.DelegationState;
+import org.activiti.engine.task.IdentityLinkType;
+import org.apache.commons.lang3.StringUtils;
+
+import java.util.Map;
+
+/**
+ * @Author zhanglin
+ * @Date 2019/4/9 11:17
+ * @Verson 1.0
+ */
+public class MyCompleteTaskCmd extends AbstractCompleteTaskCmd {
+
+    private static final long serialVersionUID = 1L;
+    protected Map<String, Object> variables;
+    protected Map<String, Object> transientVariables;
+    protected boolean localScope;
+
+    public MyCompleteTaskCmd(String taskId, Map<String, Object> variables) {
+        super(taskId);
+        this.variables = variables;
+    }
+
+    public MyCompleteTaskCmd(String taskId, Map<String, Object> variables, boolean localScope) {
+        this(taskId, variables);
+        this.localScope = localScope;
+    }
+
+    public MyCompleteTaskCmd(String taskId, Map<String, Object> variables, Map<String, Object> transientVariables) {
+        this(taskId, variables);
+        this.transientVariables = transientVariables;
+    }
+
+    @Override
+    protected Void execute(CommandContext commandContext, TaskEntity task) {
+        // Backwards compatibility
+        if (task.getProcessDefinitionId() != null) {
+            if (Activiti5Util.isActiviti5ProcessDefinitionId(commandContext, task.getProcessDefinitionId())) {
+                throw new ActivitiException("Not support Activiti5.");
+                /*Activiti5CompatibilityHandler activiti5CompatibilityHandler = Activiti5Util.getActiviti5CompatibilityHandler();
+                activiti5CompatibilityHandler.completeTask(task, variables, localScope);*/
+            }
+        }
+
+        if (variables != null) {
+            if (localScope) {
+                task.setVariablesLocal(variables);
+            } else if (task.getExecutionId() != null) {
+                task.setExecutionVariables(variables);
+            } else {
+                task.setVariables(variables);
+            }
+        }
+
+        if (transientVariables != null) {
+            if (localScope) {
+                task.setTransientVariablesLocal(transientVariables);
+            } else {
+                task.setTransientVariables(transientVariables);
+            }
+        }
+
+        executeTaskComplete(commandContext, task, variables, localScope);
+        return null;
+    }
+
+    protected void executeTaskComplete(CommandContext commandContext, TaskEntity taskEntity, Map<String, Object> variables, boolean localScope) {
+        System.out.println("执行自定义的  executeTaskComplete 。。。");
+        // Task complete logic
+        if (taskEntity.getDelegationState() != null && taskEntity.getDelegationState().equals(DelegationState.PENDING)) {
+            throw new ActivitiException("A delegated task cannot be completed, but should be resolved instead.");
+        }
+
+        commandContext.getProcessEngineConfiguration().getListenerNotificationHelper().executeTaskListeners(taskEntity, TaskListener.EVENTNAME_COMPLETE);
+        if (Authentication.getAuthenticatedUserId() != null && taskEntity.getProcessInstanceId() != null) {
+            ExecutionEntity processInstanceEntity = commandContext.getExecutionEntityManager().findById(taskEntity.getProcessInstanceId());
+            commandContext.getIdentityLinkEntityManager().involveUser(processInstanceEntity, Authentication.getAuthenticatedUserId(), IdentityLinkType.PARTICIPANT);
+        }
+
+        ActivitiEventDispatcher eventDispatcher = Context.getProcessEngineConfiguration().getEventDispatcher();
+        if (eventDispatcher.isEnabled()) {
+            if (variables != null) {
+                eventDispatcher.dispatchEvent(ActivitiEventBuilder.createEntityWithVariablesEvent(ActivitiEventType.TASK_COMPLETED, taskEntity, variables, localScope));
+            } else {
+                eventDispatcher.dispatchEvent(ActivitiEventBuilder.createEntityEvent(ActivitiEventType.TASK_COMPLETED, taskEntity));
+            }
+        }
+
+        commandContext.getTaskEntityManager().deleteTask(taskEntity, null, false, false);
+
+        // 检查判断是否需要跳转到未执行流程
+        // TODO
+        String targetFlowElementId = getJumpNotExecutionTaskKey();
+        if (StringUtils.isNotBlank(targetFlowElementId)) { // 跳转到目标节点
+            if (taskEntity.getExecutionId() != null) {
+                jumpNotExecutionTask(commandContext, taskEntity, targetFlowElementId);
+            }
+        } else {
+            // Continue process (if not a standalone task)
+            if (taskEntity.getExecutionId() != null) {
+                ExecutionEntity executionEntity = commandContext.getExecutionEntityManager().findById(taskEntity.getExecutionId());
+                Context.getAgenda().planTriggerExecutionOperation(executionEntity);
+            }
+        }
+    }
+
+    /**
+     * 1、判断是否是最后节点
+     *      如果是：判断是否还有未执行的节点， 如果有则返回未执行节点ID，没有则返回null
+     *      如果否：返回null
+     * @return
+     */
+    private String getJumpNotExecutionTaskKey() {
+        // TODO
+        return "userApprove";
+    }
+
+    /**
+     * 跳转到目标节点
+     * @param commandContext
+     * @param taskEntity
+     * @param targetFlowElementId
+     */
+    private void jumpNotExecutionTask(CommandContext commandContext, TaskEntity taskEntity, String targetFlowElementId) {
+        if (taskEntity.getExecutionId() != null) {
+            System.out.println("跳转到未执行的节点。。。");
+            ExecutionEntity executionEntity = commandContext.getExecutionEntityManager().findById(taskEntity.getExecutionId());
+            Process process = ProcessDefinitionUtil.getProcess(executionEntity.getProcessDefinitionId());
+            FlowElement targetFlowElement = process.getFlowElement(targetFlowElementId);
+            executionEntity.setCurrentFlowElement(targetFlowElement);
+            commandContext.getAgenda().planContinueProcessInCompensation(executionEntity);
+        }
+    }
+}
+```
+
+### 获取流程所有任务
+
+![1555656670126](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1555656670126.png)
+
+
+
+
+
+### 多实例任务节点定义
+
+```xml
+<userTask id="sid-9539BA22-07C3-4CAA-B7E1-86303ED25989" name="测试" activiti:assignee="${assignee}">
+  <multiInstanceLoopCharacteristics isSequential="false" activiti:collection="assigneeList" activiti:elementVariable="assignee">
+    <completionCondition>${nrOfCompletedInstances/nrOfInstances &gt;= 1}</completionCondition>
+  </multiInstanceLoopCharacteristics>
+</userTask>
+
+<!--
+1、isSequential：true串行    false并行
+2、completionCondition 完成条件，如果不设置，则默认为1，即所有的通过才完成改节点
+3、activiti:collection="assigneeList" 开始某个节点时，根据assigneeList集合个数设置多实例循环次数
+        Map<String, Object> var = new HashMap<>();
+        String[] a = new String[]{"userA","shopA","shopB","expressA"} ;
+        var.put("assigneeList", Arrays.asList(a));
+4、activiti:candidateUsers="userA,shopA,shopB,expressA"  节点处理候选人
+
+-->
+```
+
+
+
+![1556458260052](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1556458260052.png)
+
+![1556459259020](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1556459259020.png)
+
+ ![1556459742540](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1556459742540.png)
+
+![1556459839171](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1556459839171.png)
+
+![1556521694216](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1556521694216.png)
+
+
+
+![1556460787253](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1556460787253.png)
+
+怎么区分流程节点的任务类型：
+
+![1556461434997](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1556461434997.png)
+
+
+
+多实例任务减签（减少执行人）：
+
+![1556578098832](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1556578098832.png)
+
+![1556578209960](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1556578209960.png)
+
+![1556579644349](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1556579644349.png)
+
+![1557898924326](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1557898924326.png)
+
+
+
+
+
+### 动态添加流程节点
+
+```java
+@Override
+public void dynamicStartSubProcess(String taskId, String subProcessKey) {
+    // 当前节点信息
+    Task task = getTaskById(taskId);
+    FlowElement currentFlowElement = getCurrentTask(task.getTaskDefinitionKey(), task.getProcessDefinitionId());
+    UserTask currentTask = (UserTask) currentFlowElement;
+
+    // 查询子流程信息
+    ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery()
+            .processDefinitionKey(subProcessKey)
+            .latestVersion().singleResult();
+    if (processDefinition == null) {
+        throw new Activiti6Exception("子流程未部署");
+    }
+
+    // 构造一个CallActivity
+    CallActivity callActivity = new CallActivity();
+    callActivity.setId("ca-" + UUID.randomUUID());
+    callActivity.setName(processDefinition.getName());
+    callActivity.setCalledElement(processDefinition.getKey());
+    callActivity.setBehavior(managementService.executeCommand(
+            new CreateCallActivityBehaviorCmd(callActivity)
+    ));
+
+    // 构建连线
+    SequenceFlow sequenceFlow = new SequenceFlow();
+    sequenceFlow.setId("seq-" + UUID.randomUUID());
+    sequenceFlow.setSourceRef(currentTask.getId());
+    sequenceFlow.setTargetRef(callActivity.getId());
+    sequenceFlow.setTargetFlowElement(callActivity);
+
+    currentTask.setOutgoingFlows(Arrays.asList(sequenceFlow));
+
+    // TODO 如果把下面这段去掉，能否正常进入子流程
+    ProcessDefinitionCacheEntry processDefinitionCacheEntry = managementService.executeCommand(
+            new GetProcessDefinitionCacheEntryCmd(task.getProcessDefinitionId()));
+    Process process = processDefinitionCacheEntry.getProcess();
+    process.addFlowElement(callActivity);
+    process.addFlowElement(sequenceFlow);
+    processDefinitionCacheEntry.setProcess(process);
+
+    // TODO 需要建立一张表，存储动态子流程与主流程的关系
+
+    // 完成任务，字段进入子流程
+    completeTask(taskId, null);
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+## Mybatis
+
+### jdbcType与javaType对应关系
+
+1. JDBC Type           Java Type  
+2. CHAR                String  
+3. VARCHAR             String  
+4. LONGVARCHAR         String  
+5. NUMERIC             java.math.BigDecimal  
+6. DECIMAL             java.math.BigDecimal  
+7. BIT             boolean  
+8. BOOLEAN             boolean  
+9. TINYINT             byte  
+10. SMALLINT            short  
+11. INTEGER             int  
+12. BIGINT              long  
+13. REAL                float  
+14. FLOAT               double  
+15. DOUBLE              double  
+16. BINARY              byte[]  
+17. VARBINARY           byte[]  
+18. LONGVARBINARY               byte[]  
+19. DATE                java.sql.Date  
+20. TIME                java.sql.Time  
+21. TIMESTAMP           java.sql.Timestamp  
+22. CLOB                Clob  
+23. BLOB                Blob  
+24. ARRAY               Array  
+25. DISTINCT            mapping of underlying type  
+26. STRUCT              Struct  
+27. REF                         Ref  
 
 
 
@@ -2170,4 +2767,61 @@ cron表达式格式：`* * * * * ?`
 ​	依赖注入从字面意思就可以知道，要将对象P注入到对象A，那么首先就必须生成对象P与对象A，才能执行注入。所以，如果一个类A中有成员变量P被@Autowired注解，那么@Autowired注入是发生在A的构造方法执行完之后的。
 
 ​	如果想在生成对象的时候完成某些初始化操作，而偏偏这些初始化操作又依赖于依赖注入，那么久无法在构造函数中实现。为此，可以使用`@PostConstruct`注解一个**方法**来完成初始化，`@PostConstruct`注解的方法将会在依赖注入完成后被自动调用。
+
+
+
+
+
+## SQL
+
+### 把 #1#2#3# 格式数据查询成 古装,历史,仙侠 格式语句
+
+![1554952083710](C:\Users\zhanglin\AppData\Roaming\Typora\typora-user-images\1554952083710.png)
+
+
+
+
+
+
+
+
+
+### JAVA调优
+
+```properties
+在启动命令上增加-Xms、-Xmx：
+java -Xms256m -Xmx512m -jar xxx.jar
+```
+
+
+
+
+
+
+
+
+
+## Rocketmq
+
+### 修改store路径
+
+```properties
+在config中找到broker.conf文件，在文件里面增加
+
+storePathRootDir = D:/apps/store
+#commitLog 存储路径 
+storePathCommitLog = D:/apps/store/commitlog 
+#消费队列存储路径存储路径 
+storePathConsumeQueue = D:/apps/store/consumequeue
+#消息索引存储路径 
+storePathIndex = D:/apps/store/index 
+#checkpoint 文件存储路径 
+storeCheckpoint = D:/apps/store
+
+在启动 mqbrokerstart.cmd的命令中增加  -c broker.conf文件路径
+```
+
+
+
+
 
